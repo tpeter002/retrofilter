@@ -13,3 +13,8 @@ The requirements for the homework were the following:
 - Noises and patches [X] 
     - Created with salt and pepper noise, gaussian blur and dilation
 - Add retro border [X] - with border
+
+The original picture was this:
+![original picture](./old_times_tp.jpg)
+and here's the modified one:
+![retro effect applied](./vintage_tp.jpg)

@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import random
 
-def sp_noise(img,prob):
+def add_sp_noise(img,prob):
     '''
     Add salt and pepper noise to image
     prob: Probability of the noise
@@ -20,7 +20,7 @@ def sp_noise(img,prob):
                 output[i][j] = img[i][j]
     return output
 
-def sepia_trans(img):
+def add_sepia(img):
     '''
     Modify the image to sepia by converting the image to grayscale
     to capture information about the intensity of the image
@@ -38,15 +38,7 @@ def sepia_trans(img):
     sepia[:,:,2] *= normalized_gray #R
     return np.array(sepia, np.uint8)
 
-def make_border(img,h_scale = 0.04,v_scale = 0.02):
-    '''
-    Add border to the image
-    '''
-    horizontal = int(h_scale * img.shape[0])
-    vertical = int(v_scale * img.shape[1])
-    return cv2.copyMakeBorder(img, vertical, vertical, horizontal, horizontal, cv2.BORDER_CONSTANT, value=(62, 63, 64))
-
-def create_vignette(img, level=2):
+def add_vignette(img, level=2):
     '''
     Create a vignette effect on the image
     '''
@@ -66,6 +58,35 @@ def change_contrast(image, alpha = 0.7, beta=1):
     '''
     return cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
 
+def load_texture(file_path, size):
+    '''
+    Load and prepare a texture image.
+    '''
+    texture = cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
+    resized = cv2.resize(texture, size, interpolation=cv2.INTER_AREA)
+    return resized
+
+def apply_texture(image, texture, intensity=0.5):
+    '''
+    Apply a texture to the image using the specified blend mode.
+    '''
+    # Ensure texture has the same number of channels as the image
+    if len(image.shape) == 3 and image.shape[2] == 3:
+        texture = cv2.cvtColor(texture, cv2.COLOR_GRAY2BGR)
+    
+    # Ensure both images have the same data type
+    image = image.astype(np.float32)
+    texture = texture.astype(np.float32)
+    
+    # Overlay the images
+    low = 2 * image * texture / 255.0
+    high = 255.0 - 2 * (255.0 - image) * (255.0 - texture) / 255.0
+    blended = np.where(image < 128, low, high)
+    # Apply the blending with intensity
+    result = image * (1 - intensity) + blended * intensity
+    
+    return np.clip(result, 0, 255).astype(np.uint8)
+
 def apply_vintage_effect(image_path, output_path):
     '''
     Main function for handling the transformation
@@ -75,48 +96,47 @@ def apply_vintage_effect(image_path, output_path):
         Adds salt and pepper noise to the image - Add noise [X]
         Converts the image to sepia - Add image color transformation [X]
         Creates a vignette effect - Add vignette effect [X]
-        Adds a border to the image - Add retro border [X]
+        Adds an old border to the image - Add retro border [X]
         Lower the contrast of the image - Change contrast [X]
-
-    These complete the requirements for the homework
-        Image color transformation [X] - with sepia filter
-        Add vignette effect [X] - with vignette effect
-        Add retro border [X] - with border
-        Low contrast [X] - with contrast change
-        Noises and patches [X] - with salt and pepper noise, gaussian blur, dilation
+        Add a stained picture for old effect
     '''
     # image reading
     img = cv2.imread(image_path)
 
     # image dilation or erosion, haven't decided yet
-    kernel = np.ones((7,7), np.uint8)
+    kernel = np.ones((3,3), np.uint8)
     dilate_erode = cv2.dilate(img, kernel)
     
     # gaussian blur to make image blurry
-    blurred = cv2.GaussianBlur(dilate_erode, (7, 7),0)
-    noisyi = sp_noise(blurred, 0.05)
+    blurred = cv2.GaussianBlur(dilate_erode, (3, 3),0)
+    noisyi = add_sp_noise(blurred, 0.05)
     
-    sepia = sepia_trans(noisyi)
+    sepia = add_sepia(noisyi)
 
     # create vignette effect
-    vignette = create_vignette(sepia, level=4)
+    vignette = add_vignette(sepia, level=2)
 
     # add border to the image
-    borders = make_border(vignette, h_scale = 0.04, v_scale = 0.02)
+    bordered = load_texture("input_images/border_overlay.jpeg", (vignette.shape[1], vignette.shape[0]))
+    new_border = apply_texture(vignette, bordered, intensity=1)
 
     # change contrast
-    oldified = change_contrast(borders, alpha=0.7, beta=1)
+    oldified = change_contrast(new_border, alpha=0.7, beta=1)
 
-    cv2.imwrite(output_path, oldified)
+    old_pic = load_texture("input_images/old_texture.jpeg", (oldified.shape[1], oldified.shape[0]))
+    stained_pic = apply_texture(oldified, old_pic, intensity=1)
+
+    
+    cv2.imwrite(output_path, stained_pic)
 
     cv2.imshow('original picture',img)
-    cv2.imshow('oldified picture',borders)
+    cv2.imshow('oldified picture',stained_pic)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
     print(f"The transformation is complete and saved to: {output_path}")
 
 if __name__ == "__main__":
-    input_image = "./instakep.jpeg"  # Cserélje ki a saját képének elérési útjával
-    output_image = "./vintage_output.jpg"
+    input_image = "./old_times_tp.jpg"  # Cserélje ki a saját képének elérési útjával
+    output_image = "./vintage_tp.jpg"
     apply_vintage_effect(input_image, output_image)
